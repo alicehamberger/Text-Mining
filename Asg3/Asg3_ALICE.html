@@ -1,0 +1,2063 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "AQzYGMVl4-1n"
+   },
+   "source": [
+    "# Assignment 3"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "Dloey_mk4-1q"
+   },
+   "source": [
+    "## Guidelines\n",
+    "\n",
+    "> Remember to add an explanation of what you do using markdown, and to comment your code. Please *be brief*.\n",
+    ">\n",
+    "> If you re-use a substantial portion of code you find online, e.g on Stackoverflow, you need to add a link to it and make the borrowing explicit. The same applies of you take it and modify it, even substantially. There is nothing bad in doing that, providing you are acknowledging it and make it clear you know what you're doing.\n",
+    ">\n",
+    "> Make sure your notebooks have been run when you sumit, as I won't run them myself. Submit both the `.ipynb` file along with an `.html` export of the same. Submit all necessary auxilliary files as well. Please compress your submission into a `.zip` archive. Only `.zip` files can be submitted."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "zfy-TozC4-1s"
+   },
+   "source": [
+    "## Grading policy\n",
+    "> As follows:\n",
+    ">\n",
+    "> * 80 points for correctly completing the assignment.\n",
+    ">\n",
+    "> * 20 points for appropriately writing and organizing your code in terms of structure, readibility (also by humans), comments and minimal documentation. It is important to be concise but also to explain what you did and why, when not obvious.\n",
+    "> \n",
+    "> Note that there are no extras for this assignment, as all 100 points are accrued via questions. \n",
+    "\n",
+    "**The AUC code of conduct applies to this assignment: please only submit your own work.**"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "qRnI9EF74-1t"
+   },
+   "source": [
+    "---"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "MmAFtiS14-1u"
+   },
+   "source": [
+    "# Introduction\n",
+    "\n",
+    "In this assignment, you will build and compare classifiers for measuring the **sentiment of tweets related to COVID-19**.\n",
+    "\n",
+    "The dataset you will work with is [publicly available in Kaggle](https://www.kaggle.com/datatattle/covid-19-nlp-text-classification) (and attached to the assignment for your convenience). Make sure to check its minimal Kaggle documentation before starting.\n",
+    "\n",
+    "This is a real dataset, and therefore messy. It is possible that you won't achieve great results on the classification task with your classifier. That is normal, don't worry about it! You also may find text encoding issues with this dataset. Try to find a simple solution to this problem, I don't think there is an easy way to fix it completely for these files.\n",
+    "\n",
+    "*Please note: this dataset should not but might contain content which could be considered as offensive.*"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "Rv4avAae4-1v"
+   },
+   "source": [
+    "---"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "TTwyDa3M4-1v"
+   },
+   "source": [
+    "# Skeleton pipeline (25 points)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "nXgFtpSY4-1x"
+   },
+   "source": [
+    "## Question 1 (10 points)\n",
+    "\n",
+    "Your dataset contains tweets, including handlers, hashtags, URLs, etc. Set-up a **minimal pre-processing pipeline** for them (focus on the `OriginalTweet` column), possibly including:\n",
+    "\n",
+    "* Tokenization\n",
+    "* Filtering\n",
+    "* Lemmatization/Stemming\n",
+    "\n",
+    "Please note that what to include is up to you, motivate your choices and remember that more is not necessarily better: if you are not sure why you are doing something, it might be better not to. Feel free to use NLTK, spaCy or anything else you like here."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 13,
+   "metadata": {
+    "id": "x0DzGcra4-1x"
+   },
+   "outputs": [],
+   "source": [
+    "import re\n",
+    "import nltk\n",
+    "import spacy\n",
+    "import string\n",
+    "import random\n",
+    "import chardet\n",
+    "import numpy as np\n",
+    "import collections\n",
+    "import pandas as pd\n",
+    "import seaborn as sns\n",
+    "import en_core_web_sm \n",
+    "from sklearn import metrics\n",
+    "import matplotlib.pyplot as plt\n",
+    "from scipy.stats import wilcoxon\n",
+    "from nltk.tokenize import word_tokenize\n",
+    "from nltk.tokenize import TweetTokenizer\n",
+    "from sklearn.svm import SVR, SVC, LinearSVC\n",
+    "from matplotlib.ticker import PercentFormatter\n",
+    "from sklearn.neural_network import MLPClassifier\n",
+    "from sklearn.model_selection import GridSearchCV\n",
+    "from torch.utils.data.dataset import random_split\n",
+    "from sklearn.linear_model import LogisticRegression\n",
+    "from sklearn.model_selection import train_test_split\n",
+    "from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor\n",
+    "from sklearn.metrics import recall_score, precision_score, f1_score, accuracy_score\n",
+    "from sklearn.feature_extraction.text import TfidfVectorizer, HashingVectorizer, CountVectorizer"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {
+    "id": "WZ2OPwtS4-10"
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>UserName</th>\n",
+       "      <th>ScreenName</th>\n",
+       "      <th>Location</th>\n",
+       "      <th>TweetAt</th>\n",
+       "      <th>OriginalTweet</th>\n",
+       "      <th>Sentiment</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>3799</td>\n",
+       "      <td>48751</td>\n",
+       "      <td>London</td>\n",
+       "      <td>16-03-2020</td>\n",
+       "      <td>@MeNyrbie @Phil_Gahan @Chrisitv https://t.co/i...</td>\n",
+       "      <td>Neutral</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>3800</td>\n",
+       "      <td>48752</td>\n",
+       "      <td>UK</td>\n",
+       "      <td>16-03-2020</td>\n",
+       "      <td>advice Talk to your neighbours family to excha...</td>\n",
+       "      <td>Positive</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>3801</td>\n",
+       "      <td>48753</td>\n",
+       "      <td>Vagabonds</td>\n",
+       "      <td>16-03-2020</td>\n",
+       "      <td>Coronavirus Australia: Woolworths to give elde...</td>\n",
+       "      <td>Positive</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>3802</td>\n",
+       "      <td>48754</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>16-03-2020</td>\n",
+       "      <td>My food stock is not the only one which is emp...</td>\n",
+       "      <td>Positive</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>3803</td>\n",
+       "      <td>48755</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>16-03-2020</td>\n",
+       "      <td>Me, ready to go at supermarket during the #COV...</td>\n",
+       "      <td>Extremely Negative</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "   UserName  ScreenName   Location     TweetAt  \\\n",
+       "0      3799       48751     London  16-03-2020   \n",
+       "1      3800       48752         UK  16-03-2020   \n",
+       "2      3801       48753  Vagabonds  16-03-2020   \n",
+       "3      3802       48754        NaN  16-03-2020   \n",
+       "4      3803       48755        NaN  16-03-2020   \n",
+       "\n",
+       "                                       OriginalTweet           Sentiment  \n",
+       "0  @MeNyrbie @Phil_Gahan @Chrisitv https://t.co/i...             Neutral  \n",
+       "1  advice Talk to your neighbours family to excha...            Positive  \n",
+       "2  Coronavirus Australia: Woolworths to give elde...            Positive  \n",
+       "3  My food stock is not the only one which is emp...            Positive  \n",
+       "4  Me, ready to go at supermarket during the #COV...  Extremely Negative  "
+      ]
+     },
+     "execution_count": 3,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# it gave UnicodeDecode error with encoding utf-8 \n",
+    "file = \"data/Corona_NLP_train.csv\"\n",
+    "df_train = pd.read_csv(file, encoding=\"latin-1\")\n",
+    "df_train.head()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "jcGyC86g4-13"
+   },
+   "source": [
+    "*Note: we only really use the `OriginalTweet` and `Sentiment` columns for this assignment.*"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "                                               Tweet           Sentiment\n",
+      "0                        menyrbie philgahan chrisitv             Neutral\n",
+      "1  advice talk neighbour family exchange phone nu...            Positive\n",
+      "2  coronavirus australia woolworth give elderly d...            Positive\n",
+      "3  food stock one empty please dont panic enough ...            Positive\n",
+      "4  ready supermarket covid outbreak paranoid food...  Extremely Negative\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Q1\n",
+    "\n",
+    "def preprocessing(inpf):\n",
+    "    \"\"\"Input: path to text file (text)\n",
+    "       Output: preprocessed txt file\"\"\"\n",
+    "    # read file into df\n",
+    "    df = pd.read_csv(inpf, encoding=\"latin-1\")\n",
+    "    # specify column\n",
+    "    OriginalTweet = df[\"OriginalTweet\"] #.head(100) this takes the first 100 rows \n",
+    "                                        # I used this in the beginnng to run functions quickly\n",
+    "    #specify stopwords\n",
+    "    stopwords = nltk.corpus.stopwords.words('english')\n",
+    "    signs = [\"\\\\\",'/']\n",
+    "    # url tag\n",
+    "    urlremover = re.compile(r'http\\S+')\n",
+    "    # html tag remover\n",
+    "    htmlremover = re.compile('<.*?>|&([a-z0-9]+|#[0-9]{1,6}|#x[0-9a-f]{1,6});')\n",
+    "    \n",
+    "    # initialize list of lists (each list is tweet)\n",
+    "    tokenized = []\n",
+    "    \n",
+    "    third = []\n",
+    "    for line in OriginalTweet:\n",
+    "    # Filtering: Remove unecessary character\n",
+    "        line = line.strip().lower().translate(line.maketrans(\"\", \"\", string.punctuation))\n",
+    "        #print(\"aaa\",line, type(line))\n",
+    "        line = re.sub(r'[0-9]+', '', line)\n",
+    "    # Tokenizing\n",
+    "    # During class I learned about the twitter tokenizer.\n",
+    "    # I thought this would be very helpful here and implemented it!\n",
+    "        #line = word_tokenize(line)\n",
+    "        line = TweetTokenizer().tokenize(line)\n",
+    "        \n",
+    "    # store in lines in list of lines\n",
+    "        tokenized.append(line)\n",
+    "        \n",
+    "    for tweet in tokenized:\n",
+    "        \n",
+    "        lemmatized = []\n",
+    "        \n",
+    "        #print(tweet)\n",
+    "        for word in tweet:\n",
+    "            #print(word)\n",
+    "            word = urlremover.sub(\" \", word)\n",
+    "            word = htmlremover.sub(\" \", word)\n",
+    "    \n",
+    "\n",
+    "            if ((len(word) > 2) and (not word in stopwords) and (not word in signs)):\n",
+    "            \n",
+    "                lemma = nltk.WordNetLemmatizer().lemmatize(word)\n",
+    "            \n",
+    "                lemmatized.append(lemma)\n",
+    "                \n",
+    "        # removes Nans and errors\n",
+    "        if lemmatized != []:\n",
+    "            stuff = \" \".join(lemmatized)\n",
+    "            third.append(stuff)\n",
+    "\n",
+    "    ppdf = pd.DataFrame(third, columns = ['Tweet'])\n",
+    "    ppdf['Sentiment'] = df['Sentiment']\n",
+    "    return ppdf\n",
+    "\n",
+    "df_trainpp = preprocessing(\"data/Corona_NLP_train.csv\")\n",
+    "print(df_trainpp.head(5))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "eeR26J-N4-15"
+   },
+   "source": [
+    "---"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "JyDE26-i4-15"
+   },
+   "source": [
+    "## Question 2 (5 points)\n",
+    "\n",
+    "**Split your data into a train and a validation set**. You can use 85% for training and 15% for validation, or similar proportions. Remember to shuffle your data before splitting, specifying a seed to be able to replicate your results."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {
+    "id": "9vWDVkRB4-16"
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "                                                Tweet Sentiment\n",
+      "49  everything weâre seeing current covid outbrea...   Neutral\n",
+      "70                covid thanks making online shopping   Neutral\n",
+      "68  coronavirus covid group mum live group need sh...  Positive\n",
+      "15  line grocery store unpredictable eating safe a...  Positive\n",
+      "39  provide safe shopping experience customer heal...  Positive\n"
+     ]
+    }
+   ],
+   "source": [
+    "#Q2\n",
+    "\n",
+    "# random seed = 42 (random_state)\n",
+    "\n",
+    "traindf, testdf = train_test_split(df_trainpp, test_size=0.20, random_state=42)\n",
+    "print(traindf.head(5))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "QpfNtdX04-16"
+   },
+   "source": [
+    "---"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "I328Auig4-17"
+   },
+   "source": [
+    "## Question 3 (10 points)\n",
+    "\n",
+    "Write a function which, given as input a set of predictions and a set of ground truth labels, prints out a **classification report** including:\n",
+    "* Name of the method\n",
+    "* Accuracy\n",
+    "* Precision, recall and F1 measure\n",
+    "* An example of a correctly classified datapoint\n",
+    "* An example of a wrongly classified datapoint"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "metadata": {
+    "id": "uGTHtBPu4-18"
+   },
+   "outputs": [],
+   "source": [
+    "# Q3\n",
+    "\n",
+    "def report(method, data, pred):\n",
+    "    \"\"\" Input: classification method,\n",
+    "        DataFrame with a column named \"Tweets\" and \"Sentiment\", and the predicted classification\n",
+    "    \"\"\"\n",
+    "    \n",
+    "    truth = data[\"Sentiment\"].reset_index(drop=True)\n",
+    "    tweets = data[\"Tweet\"].reset_index(drop=True)\n",
+    "    \n",
+    "    for i in range(len(truth)):\n",
+    "        if truth[i] == pred[i]:\n",
+    "            print(\"Example of a correctly classified datapoint:\", tweets[i], \"\\n\")\n",
+    "            break\n",
+    "            \n",
+    "    for i in range(len(truth)):\n",
+    "        if truth[i] != pred[i]:\n",
+    "            print(\"Example of a wrongly classified datapoint:\", tweets[i], \"\\n\")\n",
+    "            break\n",
+    "            \n",
+    "    print(\"Method: \", method)\n",
+    "    print(\"Accuracy: \", accuracy_score(truth, pred))\n",
+    "    print(\"Precision: \", precision_score(truth, pred, average = \"weighted\"))\n",
+    "    print(\"Recall: \", recall_score(truth, pred, average = \"weighted\"))\n",
+    "    print(\"F1 Measure: \", f1_score(truth, pred, average = \"weighted\"))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "PZG3nFTa4-18"
+   },
+   "source": [
+    "---"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "YwLrjSBV4-18"
+   },
+   "source": [
+    "# Classifying (55 points)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "n_gI9lIS4-19"
+   },
+   "source": [
+    "## Question 4 (15 points)\n",
+    "\n",
+    "An important first step when dealing with a real-world task is establishing a **solid baseline**. The baseline allows to a) develop the first full pipeline for your task, and b) to have something to compare against when you develop more advanced models.\n",
+    "\n",
+    "Pick a method to use as a baseline. *A good option might be a TF-IDF Logistic Regression*. Feel free to use scikit-learn or another library of choice. See [here](https://scikit-learn.org/stable/supervised_learning.html#supervised-learning) for more options.\n",
+    "\n",
+    "Use your classification report function and the validation set to report on the performance of your baseline. *Pay attention: the validation data only needs to be transformed, and must not be used to fit any transformation. For example, if you have used a TF-IDF vectorizer by fitting it to your train data and then transformed it, use the same fitted vectorizer to transform your validation data.*"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "metadata": {
+    "id": "DOyDJ8494-1-"
+   },
+   "outputs": [],
+   "source": [
+    "# Q4 \n",
+    "\n",
+    "tvectorizer = TfidfVectorizer()\n",
+    "train_tvectorizer = tvectorizer.fit_transform(traindf[\"Tweet\"])\n",
+    "test_tvectorizer = tvectorizer.transform(testdf[\"Tweet\"]) \n",
+    "\n",
+    "tlogreg = LogisticRegression(solver=\"lbfgs\", max_iter=1000)\n",
+    "tlogreg_fit = tlogreg.fit(train_tvectorizer, traindf[\"Sentiment\"])\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Example of a correctly classified datapoint: feeling like ethical still stuff like order delivery food online shopping etc ship isolation care package loved one etc covid \n",
+      "\n",
+      "Example of a wrongly classified datapoint: curious think retail shopper lot online shopping theyre home unable think everyone spooked get extra pair shoe economy onlineshopping coronavirus covid stayhome \n",
+      "\n",
+      "Method:  Tf-IDF Vectorizer + LogReg\n",
+      "Accuracy:  0.15\n",
+      "Precision:  0.023684210526315787\n",
+      "Recall:  0.15\n",
+      "F1 Measure:  0.04090909090909091\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/Users/alice/opt/anaconda3/lib/python3.9/site-packages/sklearn/metrics/_classification.py:1248: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.\n",
+      "  _warn_prf(average, modifier, msg_start, len(result))\n"
+     ]
+    }
+   ],
+   "source": [
+    "# input for report: method, dataframe, predicted values\n",
+    "report(\"Tf-IDF Vectorizer + LogReg\", testdf, tlogreg_fit.predict(test_tvectorizer))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "EnnmO3Kf4-1-"
+   },
+   "source": [
+    "---"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "zOE_ZHLv4-1-"
+   },
+   "source": [
+    "## Question 5 (25 points)\n",
+    "\n",
+    "Try now to **beat your baseline**. Feel free to use scikit-learn or another library of choice. See [here](https://scikit-learn.org/stable/supervised_learning.html#supervised-learning) for more options.\n",
+    "\n",
+    "How to beat the baseline? There are many ways:\n",
+    "1. You could have a better text representation (e.g., using PPMI instead of TF-IDF, note that this is challenging because there is no ready-made scikit-learn vectorizer for this).\n",
+    "2. You can pick a more powerful model (e.g., random forests or SVMs).\n",
+    "3. You have to find good hyperparameters for your model, and not just use the default ones.\n",
+    "\n",
+    "Regarding point 3 above, make sure to perform some hyperparameter searching using [grid search](https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.GridSearchCV.html) or [randomized search](https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.RandomizedSearchCV.html).\n",
+    "\n",
+    "Use your classification report function and the validation set to report on the performance of your baseline. *Pay attention: the validation data only needs to be transformed, and must not be used to fit any transformation. For example, if you have used a TF-IDF vectorizer by fitting it to your train data and then transformed it, use the same fitted vectorizer to transform your validation data.*"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 10,
+   "metadata": {
+    "id": "pIcbBVMO4-1_"
+   },
+   "outputs": [],
+   "source": [
+    "# Q5 \n",
+    "\n",
+    "# 1st Try: Hashing Vectorizer (in the same library as TfidfVectorizer)\n",
+    "# However, this gave me the same results as the TfidfVectorizer. \n",
+    "# Therefore I exchanged logistic regression to random forest classification. This improved my results.\n",
+    "# I also tried SVM's SVR and SVC however these results were the same as the TfidfVectorizer. \n",
+    "# Additionally, I tired LinearSVC, hrtr thr results were better, but random forest was best.\n",
+    "\n",
+    "# Hyperparameters\n",
+    "\n",
+    "# For the Hashing Vectorizer I tried changing: ngram_range, analyzer, and min_samples_leaf\n",
+    "# For both ngram_range and analyzer, I recieved better accuracy and recall, however the precision decreased a lot.\n",
+    "# As seen below:\n",
+    "\n",
+    "# with analyzer='char' or ngram_range=(2,2)\n",
+    "#Method:  HashingVectorizer(analyzer='char')\n",
+    "#Accuracy:  0.25\n",
+    "#Precision:  0.0625\n",
+    "#Recall:  0.25\n",
+    "#F1 Measure:  0.1\n",
+    "\n",
+    "#Method:  HashingVectorizer()\n",
+    "#Accuracy:  0.2\n",
+    "#Precision:  0.16696428571428573\n",
+    "#Recall:  0.2\n",
+    "#F1 Measure:  0.17513597513597512\n",
+    "    \n",
+    "# As the precision decreased by 0.1 whereas the accuracy and recall only increased by 0.05, I decided to stick with \n",
+    "# the regular Hashing Vectorizer for the best scores.\n",
+    "\n",
+    "# For Random Forest Classifiers I tried changing: max_features, max_depth, criterion, and bootstrap. \n",
+    "# However different adjustmaents performed worse or the same as the current version.\n",
+    "\n",
+    "hvectorizer = HashingVectorizer()\n",
+    "train_hvectorizer = hvectorizer.fit_transform(traindf[\"Tweet\"])\n",
+    "test_hvectorizer = hvectorizer.transform(testdf[\"Tweet\"]) \n",
+    "\n",
+    "# Hashing + logreg\n",
+    "hlogreg = LogisticRegression(solver=\"lbfgs\", max_iter=1000) #SVR(), SVC(), or LinearSVC() here\n",
+    "hlogreg_fit = hlogreg.fit(train_hvectorizer, traindf[\"Sentiment\"])\n",
+    "\n",
+    "# Hashing + rfc\n",
+    "hrfc = RandomForestClassifier() #SVR(), SVC(), or LinearSVC() here\n",
+    "hrfc_fit = hrfc.fit(train_hvectorizer, traindf[\"Sentiment\"])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 11,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# 2nd Try: Count Vectorizer (in the same library as TfidfVectorizer)\n",
+    "# I tried both logistic regression and random forest regression, and the\n",
+    "# count vecotrizer with the logistic regression outperforms all previous models!\n",
+    "\n",
+    "cvectorizer = CountVectorizer()\n",
+    "train_cvectorizer = cvectorizer.fit_transform(traindf[\"Tweet\"])\n",
+    "test_cvectorizer = cvectorizer.transform(testdf[\"Tweet\"]) \n",
+    "\n",
+    "# Count + logreg\n",
+    "clogreg = LogisticRegression(solver=\"lbfgs\", max_iter=1000)\n",
+    "clogreg_fit = clogreg.fit(train_cvectorizer, traindf[\"Sentiment\"])\n",
+    "\n",
+    "# Counting + rfc\n",
+    "crfc = RandomForestClassifier() #SVR(), SVC(), or LinearSVC() here\n",
+    "crfc_fit = crfc.fit(train_cvectorizer, traindf[\"Sentiment\"])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 12,
+   "metadata": {
+    "scrolled": false
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Example of a correctly classified datapoint: feeling like ethical still stuff like order delivery food online shopping etc ship isolation care package loved one etc covid \n",
+      "\n",
+      "Example of a wrongly classified datapoint: curious think retail shopper lot online shopping theyre home unable think everyone spooked get extra pair shoe economy onlineshopping coronavirus covid stayhome \n",
+      "\n",
+      "Method:  Hashing Vectorizer + LogReg\n",
+      "Accuracy:  0.15\n",
+      "Precision:  0.023684210526315787\n",
+      "Recall:  0.15\n",
+      "F1 Measure:  0.04090909090909091\n",
+      "Example of a correctly classified datapoint: curious think retail shopper lot online shopping theyre home unable think everyone spooked get extra pair shoe economy onlineshopping coronavirus covid stayhome \n",
+      "\n",
+      "Example of a wrongly classified datapoint: feeling like ethical still stuff like order delivery food online shopping etc ship isolation care package loved one etc covid \n",
+      "\n",
+      "Method:  Hashing Vectorizer + RFC\n",
+      "Accuracy:  0.15\n",
+      "Precision:  0.12250000000000001\n",
+      "Recall:  0.15\n",
+      "F1 Measure:  0.13146853146853146\n",
+      "Example of a correctly classified datapoint: feeling like ethical still stuff like order delivery food online shopping etc ship isolation care package loved one etc covid \n",
+      "\n",
+      "Example of a wrongly classified datapoint: curious think retail shopper lot online shopping theyre home unable think everyone spooked get extra pair shoe economy onlineshopping coronavirus covid stayhome \n",
+      "\n",
+      "Method:  Counting Vectorizer + LogReg\n",
+      "Accuracy:  0.25\n",
+      "Precision:  0.4083333333333333\n",
+      "Recall:  0.25\n",
+      "F1 Measure:  0.24916666666666668\n",
+      "Example of a correctly classified datapoint: feeling like ethical still stuff like order delivery food online shopping etc ship isolation care package loved one etc covid \n",
+      "\n",
+      "Example of a wrongly classified datapoint: curious think retail shopper lot online shopping theyre home unable think everyone spooked get extra pair shoe economy onlineshopping coronavirus covid stayhome \n",
+      "\n",
+      "Method:  Counting Vectorizer + RFC\n",
+      "Accuracy:  0.15\n",
+      "Precision:  0.026470588235294117\n",
+      "Recall:  0.15\n",
+      "F1 Measure:  0.045\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/Users/alice/opt/anaconda3/lib/python3.9/site-packages/sklearn/metrics/_classification.py:1248: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.\n",
+      "  _warn_prf(average, modifier, msg_start, len(result))\n",
+      "/Users/alice/opt/anaconda3/lib/python3.9/site-packages/sklearn/metrics/_classification.py:1248: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.\n",
+      "  _warn_prf(average, modifier, msg_start, len(result))\n",
+      "/Users/alice/opt/anaconda3/lib/python3.9/site-packages/sklearn/metrics/_classification.py:1248: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.\n",
+      "  _warn_prf(average, modifier, msg_start, len(result))\n"
+     ]
+    }
+   ],
+   "source": [
+    "# input for report: method, dataframe, predicted values\n",
+    "report(\"Hashing Vectorizer + LogReg\", testdf, hlogreg_fit.predict(test_hvectorizer))\n",
+    "report(\"Hashing Vectorizer + RFC\", testdf, hrfc_fit.predict(test_hvectorizer))\n",
+    "report(\"Counting Vectorizer + LogReg\", testdf, clogreg_fit.predict(test_cvectorizer))\n",
+    "report(\"Counting Vectorizer + RFC\", testdf, crfc_fit.predict(test_cvectorizer))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "As Counting Vectorizer with Logistic Regression performs best, I performed a GridSearch on it below:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 14,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "[Parallel(n_jobs=1)]: Using backend SequentialBackend with 1 concurrent workers.\n",
+      " This problem is unconstrained.\n",
+      "[Parallel(n_jobs=1)]: Done   1 out of   1 | elapsed:    0.0s finished\n",
+      "[Parallel(n_jobs=1)]: Using backend SequentialBackend with 1 concurrent workers.\n",
+      " This problem is unconstrained.\n",
+      "[Parallel(n_jobs=1)]: Done   1 out of   1 | elapsed:    0.0s finished\n",
+      "[Parallel(n_jobs=1)]: Using backend SequentialBackend with 1 concurrent workers.\n",
+      " This problem is unconstrained.\n",
+      "[Parallel(n_jobs=1)]: Done   1 out of   1 | elapsed:    0.0s finished\n",
+      "[Parallel(n_jobs=1)]: Using backend SequentialBackend with 1 concurrent workers.\n",
+      " This problem is unconstrained.\n",
+      "[Parallel(n_jobs=1)]: Done   1 out of   1 | elapsed:    0.0s finished\n",
+      "[Parallel(n_jobs=1)]: Using backend SequentialBackend with 1 concurrent workers.\n",
+      " This problem is unconstrained.\n",
+      "[Parallel(n_jobs=1)]: Done   1 out of   1 | elapsed:    0.0s finished\n",
+      "[Parallel(n_jobs=1)]: Using backend SequentialBackend with 1 concurrent workers.\n",
+      " This problem is unconstrained.\n",
+      "[Parallel(n_jobs=1)]: Done   1 out of   1 | elapsed:    0.0s finished\n",
+      "[Parallel(n_jobs=1)]: Using backend SequentialBackend with 1 concurrent workers.\n",
+      " This problem is unconstrained.\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "RUNNING THE L-BFGS-B CODE\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "Machine precision = 2.220D-16\n",
+      " N =         4290     M =           10\n",
+      "\n",
+      "At X0         0 variables are exactly at the bounds\n",
+      "\n",
+      "At iterate    0    f=  1.01395D+02    |proj g|=  1.12000D+01\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "Tit   = total number of iterations\n",
+      "Tnf   = total number of function evaluations\n",
+      "Tnint = total number of segments explored during Cauchy searches\n",
+      "Skip  = number of BFGS updates skipped\n",
+      "Nact  = number of active bounds at final generalized Cauchy point\n",
+      "Projg = norm of the final projected gradient\n",
+      "F     = final function value\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "   N    Tit     Tnf  Tnint  Skip  Nact     Projg        F\n",
+      " 4290     25     27      1     0     0   2.116D-05   2.536D+01\n",
+      "  F =   25.363490454605849     \n",
+      "\n",
+      "CONVERGENCE: NORM_OF_PROJECTED_GRADIENT_<=_PGTOL            \n",
+      "RUNNING THE L-BFGS-B CODE\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "Machine precision = 2.220D-16\n",
+      " N =         4290     M =           10\n",
+      "\n",
+      "At X0         0 variables are exactly at the bounds\n",
+      "\n",
+      "At iterate    0    f=  1.01395D+02    |proj g|=  1.24000D+01\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "Tit   = total number of iterations\n",
+      "Tnf   = total number of function evaluations\n",
+      "Tnint = total number of segments explored during Cauchy searches\n",
+      "Skip  = number of BFGS updates skipped\n",
+      "Nact  = number of active bounds at final generalized Cauchy point\n",
+      "Projg = norm of the final projected gradient\n",
+      "F     = final function value\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "   N    Tit     Tnf  Tnint  Skip  Nact     Projg        F\n",
+      " 4290     26     28      1     0     0   6.486D-05   2.504D+01\n",
+      "  F =   25.041468770836843     \n",
+      "\n",
+      "CONVERGENCE: NORM_OF_PROJECTED_GRADIENT_<=_PGTOL            \n",
+      "RUNNING THE L-BFGS-B CODE\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "Machine precision = 2.220D-16\n",
+      " N =         4290     M =           10\n",
+      "\n",
+      "At X0         0 variables are exactly at the bounds\n",
+      "\n",
+      "At iterate    0    f=  1.01395D+02    |proj g|=  1.00000D+01\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "Tit   = total number of iterations\n",
+      "Tnf   = total number of function evaluations\n",
+      "Tnint = total number of segments explored during Cauchy searches\n",
+      "Skip  = number of BFGS updates skipped\n",
+      "Nact  = number of active bounds at final generalized Cauchy point\n",
+      "Projg = norm of the final projected gradient\n",
+      "F     = final function value\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "   N    Tit     Tnf  Tnint  Skip  Nact     Projg        F\n",
+      " 4290     23     25      1     0     0   1.315D-04   2.440D+01\n",
+      "  F =   24.403516465614672     \n",
+      "\n",
+      "CONVERGENCE: REL_REDUCTION_OF_F_<=_FACTR*EPSMCH             \n",
+      "RUNNING THE L-BFGS-B CODE\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "Machine precision = 2.220D-16\n",
+      " N =         4290     M =           10\n",
+      "\n",
+      "At X0         0 variables are exactly at the bounds\n",
+      "\n",
+      "At iterate    0    f=  1.01395D+02    |proj g|=  1.14000D+01\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "Tit   = total number of iterations\n",
+      "Tnf   = total number of function evaluations\n",
+      "Tnint = total number of segments explored during Cauchy searches\n",
+      "Skip  = number of BFGS updates skipped\n",
+      "Nact  = number of active bounds at final generalized Cauchy point\n",
+      "Projg = norm of the final projected gradient\n",
+      "F     = final function value\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "   N    Tit     Tnf  Tnint  Skip  Nact     Projg        F\n",
+      " 4290     28     30      1     0     0   4.537D-05   2.419D+01\n",
+      "  F =   24.186555124993028     \n",
+      "\n",
+      "CONVERGENCE: NORM_OF_PROJECTED_GRADIENT_<=_PGTOL            \n",
+      "RUNNING THE L-BFGS-B CODE\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "Machine precision = 2.220D-16\n",
+      " N =         4290     M =           10\n",
+      "\n",
+      "At X0         0 variables are exactly at the bounds\n",
+      "\n",
+      "At iterate    0    f=  1.03004D+02    |proj g|=  1.02000D+01\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "Tit   = total number of iterations\n",
+      "Tnf   = total number of function evaluations\n",
+      "Tnint = total number of segments explored during Cauchy searches\n",
+      "Skip  = number of BFGS updates skipped\n",
+      "Nact  = number of active bounds at final generalized Cauchy point\n",
+      "Projg = norm of the final projected gradient\n",
+      "F     = final function value\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "   N    Tit     Tnf  Tnint  Skip  Nact     Projg        F\n",
+      " 4290     25     28      1     0     0   3.253D-04   2.632D+01\n",
+      "  F =   26.321843877406611     \n",
+      "\n",
+      "CONVERGENCE: REL_REDUCTION_OF_F_<=_FACTR*EPSMCH             \n",
+      "RUNNING THE L-BFGS-B CODE\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "Machine precision = 2.220D-16\n",
+      " N =         4290     M =           10\n",
+      "\n",
+      "At X0         0 variables are exactly at the bounds\n",
+      "\n",
+      "At iterate    0    f=  1.01395D+02    |proj g|=  1.12000D+01\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "Tit   = total number of iterations\n",
+      "Tnf   = total number of function evaluations\n",
+      "Tnint = total number of segments explored during Cauchy searches\n",
+      "Skip  = number of BFGS updates skipped\n",
+      "Nact  = number of active bounds at final generalized Cauchy point\n",
+      "Projg = norm of the final projected gradient\n",
+      "F     = final function value\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "   N    Tit     Tnf  Tnint  Skip  Nact     Projg        F\n",
+      " 4290     25     27      1     0     0   2.116D-05   2.536D+01\n",
+      "  F =   25.363490454605849     \n",
+      "\n",
+      "CONVERGENCE: NORM_OF_PROJECTED_GRADIENT_<=_PGTOL            \n",
+      "RUNNING THE L-BFGS-B CODE\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "Machine precision = 2.220D-16\n",
+      " N =         4290     M =           10\n",
+      "\n",
+      "At X0         0 variables are exactly at the bounds\n",
+      "\n",
+      "At iterate    0    f=  1.01395D+02    |proj g|=  1.24000D+01\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "Tit   = total number of iterations\n",
+      "Tnf   = total number of function evaluations\n",
+      "Tnint = total number of segments explored during Cauchy searches\n",
+      "Skip  = number of BFGS updates skipped\n",
+      "Nact  = number of active bounds at final generalized Cauchy point\n",
+      "Projg = norm of the final projected gradient\n",
+      "F     = final function value\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "   N    Tit     Tnf  Tnint  Skip  Nact     Projg        F\n",
+      " 4290     26     28      1     0     0   6.486D-05   2.504D+01\n",
+      "  F =   25.041468770836843     \n",
+      "\n",
+      "CONVERGENCE: NORM_OF_PROJECTED_GRADIENT_<=_PGTOL            \n",
+      "RUNNING THE L-BFGS-B CODE\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "Machine precision = 2.220D-16\n",
+      " N =         4290     M =           10\n",
+      "\n",
+      "At X0         0 variables are exactly at the bounds\n",
+      "\n",
+      "At iterate    0    f=  1.01395D+02    |proj g|=  1.00000D+01\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "Tit   = total number of iterations\n",
+      "Tnf   = total number of function evaluations\n",
+      "Tnint = total number of segments explored during Cauchy searches\n",
+      "Skip  = number of BFGS updates skipped\n",
+      "Nact  = number of active bounds at final generalized Cauchy point\n",
+      "Projg = norm of the final projected gradient\n",
+      "F     = final function value\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "   N    Tit     Tnf  Tnint  Skip  Nact     Projg        F\n",
+      " 4290     23     25      1     0     0   1.315D-04   2.440D+01\n",
+      "  F =   24.403516465614672     \n",
+      "\n",
+      "CONVERGENCE: REL_REDUCTION_OF_F_<=_FACTR*EPSMCH             \n",
+      "RUNNING THE L-BFGS-B CODE\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "Machine precision = 2.220D-16\n",
+      " N =         4290     M =           10\n",
+      "\n",
+      "At X0         0 variables are exactly at the bounds\n",
+      "\n",
+      "At iterate    0    f=  1.01395D+02    |proj g|=  1.14000D+01\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "Tit   = total number of iterations\n",
+      "Tnf   = total number of function evaluations\n",
+      "Tnint = total number of segments explored during Cauchy searches\n",
+      "Skip  = number of BFGS updates skipped\n",
+      "Nact  = number of active bounds at final generalized Cauchy point\n",
+      "Projg = norm of the final projected gradient\n",
+      "F     = final function value\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "   N    Tit     Tnf  Tnint  Skip  Nact     Projg        F\n",
+      " 4290     28     30      1     0     0   4.537D-05   2.419D+01\n",
+      "  F =   24.186555124993028     \n",
+      "\n",
+      "CONVERGENCE: NORM_OF_PROJECTED_GRADIENT_<=_PGTOL            \n",
+      "RUNNING THE L-BFGS-B CODE\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "Machine precision = 2.220D-16\n",
+      " N =         4290     M =           10\n",
+      "\n",
+      "At X0         0 variables are exactly at the bounds\n",
+      "\n",
+      "At iterate    0    f=  1.03004D+02    |proj g|=  1.02000D+01\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "Tit   = total number of iterations\n",
+      "Tnf   = total number of function evaluations\n",
+      "Tnint = total number of segments explored during Cauchy searches\n",
+      "Skip  = number of BFGS updates skipped\n",
+      "Nact  = number of active bounds at final generalized Cauchy point\n",
+      "Projg = norm of the final projected gradient\n",
+      "F     = final function value\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "   N    Tit     Tnf  Tnint  Skip  Nact     Projg        F\n",
+      " 4290     25     28      1     0     0   3.253D-04   2.632D+01\n",
+      "  F =   26.321843877406611     \n",
+      "\n",
+      "CONVERGENCE: REL_REDUCTION_OF_F_<=_FACTR*EPSMCH             \n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "[Parallel(n_jobs=1)]: Done   1 out of   1 | elapsed:    0.0s finished\n",
+      "[Parallel(n_jobs=1)]: Using backend SequentialBackend with 1 concurrent workers.\n",
+      " This problem is unconstrained.\n",
+      "[Parallel(n_jobs=1)]: Done   1 out of   1 | elapsed:    0.0s finished\n",
+      "[Parallel(n_jobs=1)]: Using backend SequentialBackend with 1 concurrent workers.\n",
+      " This problem is unconstrained.\n",
+      "[Parallel(n_jobs=1)]: Done   1 out of   1 | elapsed:    0.0s finished\n",
+      "[Parallel(n_jobs=1)]: Using backend SequentialBackend with 1 concurrent workers.\n",
+      " This problem is unconstrained.\n",
+      "[Parallel(n_jobs=1)]: Done   1 out of   1 | elapsed:    0.0s finished\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "RUNNING THE L-BFGS-B CODE\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "Machine precision = 2.220D-16\n",
+      " N =         4290     M =           10\n",
+      "\n",
+      "At X0         0 variables are exactly at the bounds\n",
+      "\n",
+      "At iterate    0    f=  1.27146D+02    |proj g|=  1.38000D+01\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "Tit   = total number of iterations\n",
+      "Tnf   = total number of function evaluations\n",
+      "Tnint = total number of segments explored during Cauchy searches\n",
+      "Skip  = number of BFGS updates skipped\n",
+      "Nact  = number of active bounds at final generalized Cauchy point\n",
+      "Projg = norm of the final projected gradient\n",
+      "F     = final function value\n",
+      "\n",
+      "           * * *\n",
+      "\n",
+      "   N    Tit     Tnf  Tnint  Skip  Nact     Projg        F\n",
+      " 4290     26     30      1     0     0   1.302D-04   3.160D+01\n",
+      "  F =   31.601342871270479     \n",
+      "\n",
+      "CONVERGENCE: REL_REDUCTION_OF_F_<=_FACTR*EPSMCH             \n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "[Parallel(n_jobs=1)]: Using backend SequentialBackend with 1 concurrent workers.\n",
+      " This problem is unconstrained.\n",
+      "[Parallel(n_jobs=1)]: Done   1 out of   1 | elapsed:    0.0s finished\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Hyperparameter Grid Search\n",
+    "\n",
+    "params = {\n",
+    "             'solver': [\"lbfgs\"],\n",
+    "             'n_jobs': [None],\n",
+    "             'multi_class': [\"auto\"],\n",
+    "             'max_iter': [100],\n",
+    "             \"verbose\": [True, False],\n",
+    "             \"warm_start\": [True, False],\n",
+    "         }\n",
+    "\n",
+    "#, param_grid=params\n",
+    "\n",
+    "clogreg_grid = GridSearchCV(estimator=clogreg_fit, param_grid=params, scoring=\"accuracy\")\n",
+    "clogreg_grid_fit = clogreg_grid.fit(train_cvectorizer, traindf[\"Sentiment\"])\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 15,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Example of a correctly classified datapoint: feeling like ethical still stuff like order delivery food online shopping etc ship isolation care package loved one etc covid \n",
+      "\n",
+      "Example of a wrongly classified datapoint: curious think retail shopper lot online shopping theyre home unable think everyone spooked get extra pair shoe economy onlineshopping coronavirus covid stayhome \n",
+      "\n",
+      "Method:  Grid search for Counting Vectorizer with Logistic Regression\n",
+      "Accuracy:  0.25\n",
+      "Precision:  0.4083333333333333\n",
+      "Recall:  0.25\n",
+      "F1 Measure:  0.24916666666666668\n"
+     ]
+    }
+   ],
+   "source": [
+    "report(\"Grid search for Counting Vectorizer with Logistic Regression\", testdf, clogreg_grid_fit.predict(test_cvectorizer))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "S9zmQoa74-1_"
+   },
+   "source": [
+    "---"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "fV-1eX7y4-1_"
+   },
+   "source": [
+    "## Question 6 (15 points)\n",
+    "\n",
+    "Design, develop and train a (simple!) **neural network-based classifier** for this task, using scikit-learn or PyTorch. The classifier can have the structure that you prefer, just make sure to motivate your choices. If in doubt, try with a bag of embeddings classifier.\n",
+    "\n",
+    "*Note: an NN-based classifier with scikit-learn yields 5 points max; one with PyTorch yields 10 points max; one with PyTorch and pre-trained embeddings yields 15 points max.*\n",
+    "\n",
+    "Use your classification report function and the validation set to report on the performance of your baseline. *Pay attention: the validation data only needs to be transformed, and must not be used to fit any transformation. For example, if you have used a TF-IDF vectorizer by fitting it to your train data and then transformed it, use the same fitted vectorizer to transform your validation data.*s"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 16,
+   "metadata": {
+    "id": "tDn5kJj54-2A"
+   },
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/Users/alice/opt/anaconda3/lib/python3.9/site-packages/sklearn/neural_network/_multilayer_perceptron.py:614: ConvergenceWarning: Stochastic Optimizer: Maximum iterations (200) reached and the optimization hasn't converged yet.\n",
+      "  warnings.warn(\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Q6\n",
+    "\n",
+    "# NN-based classifier with scikit-learn\n",
+    "# Reading throught the scikit learn documentation, the only NN-based classifier I could find was the:\n",
+    "# Multi-layer Perceptron (MLP) and the Bernoulli Restricted Boltzmann Machine (RBM).\n",
+    "\n",
+    "# vectorizers are Hashing and Counting defined in Q5\n",
+    "\n",
+    "# NN-based classifier\n",
+    "# with Hashing Vecotrizer\n",
+    "hmlp = MLPClassifier() \n",
+    "hmlp_fit = hmlp.fit(train_hvectorizer, traindf[\"Sentiment\"])\n",
+    "\n",
+    "# with Counting Vecotrizer\n",
+    "cmlp = MLPClassifier() \n",
+    "cmlp_fit = cmlp.fit(train_cvectorizer, traindf[\"Sentiment\"])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# NN-based approach with tensorflow \n",
+    "#import tensorflow as tf\n",
+    "\n",
+    "# crashes my system\n",
+    "\"\"\" \n",
+    "model = tf.keras.Sequential([\n",
+    "  feature_layer,\n",
+    "  layers.Dense(128, activation='relu'),\n",
+    "  layers.Dense(128, activation='relu'),\n",
+    "  layers.Dropout(.1),\n",
+    "  layers.Dense(1)\n",
+    "])\n",
+    "\n",
+    "model.compile(optimizer='adam',\n",
+    "              loss=tf.keras.losses.BinaryCrossentropy(from_logits=True),\n",
+    "              metrics=['accuracy'])\n",
+    "\n",
+    "model.fit(traindf,\n",
+    "          validation_data=testdf,\n",
+    "          epochs=10)\n",
+    "\"\"\""
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Source: https://www.tensorflow.org/tutorials/structured_data/feature_columns"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from torch import nn\n",
+    "# NN-based approach with pytorch\n",
+    "\n",
+    "# crashes my system\n",
+    "\"\"\" \n",
+    "\n",
+    "class TextClassificationModel(nn.Module):\n",
+    "\n",
+    "    def __init__(self, vocab_size, embed_dim, num_class):\n",
+    "        super(TextClassificationModel, self).__init__()\n",
+    "        self.embedding = nn.EmbeddingBag(vocab_size, embed_dim, sparse=True)\n",
+    "        self.fc = nn.Linear(embed_dim, num_class)\n",
+    "        self.init_weights()\n",
+    "\n",
+    "    def init_weights(self):\n",
+    "        initrange = 0.5\n",
+    "        self.embedding.weight.data.uniform_(-initrange, initrange)\n",
+    "        self.fc.weight.data.uniform_(-initrange, initrange)\n",
+    "        self.fc.bias.data.zero_()\n",
+    "\n",
+    "    def forward(self, text, offsets):\n",
+    "        embedded = self.embedding(text, offsets)\n",
+    "        return self.fc(embedded)\n",
+    "\n",
+    "tcm = TextClassificationModel()\n",
+    "tcm_fit = tcm.fit(train_hvectorizer, traindf[\"Sentiment\"])\n",
+    "\"\"\""
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Source: https://pytorch.org/tutorials/beginner/text_sentiment_ngrams_tutorial.html\n",
+    "\n",
+    "Overall the Counting Vectorizer + MLP performs best:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 393,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "len pred 20\n",
+      "len truth 20\n",
+      "Example of a correctly classified datapoint: followed went shopping day ago pain necessary protect grocery shopping consumer report covid stayhealthy \n",
+      "\n",
+      "Example of a wrongly classified datapoint: feeling like ethical still stuff like order delivery food online shopping etc ship isolation care package loved one etc covid \n",
+      "\n",
+      "Method:  Hashing Vectorizer + MLP\n",
+      "Accuracy:  0.15\n",
+      "Precision:  0.17613636363636362\n",
+      "Recall:  0.15\n",
+      "F1 Measure:  0.14365079365079367\n",
+      "len pred 20\n",
+      "len truth 20\n",
+      "Example of a correctly classified datapoint: followed went shopping day ago pain necessary protect grocery shopping consumer report covid stayhealthy \n",
+      "\n",
+      "Example of a wrongly classified datapoint: feeling like ethical still stuff like order delivery food online shopping etc ship isolation care package loved one etc covid \n",
+      "\n",
+      "Method:  Counting Vectorizer + MLP\n",
+      "Accuracy:  0.15\n",
+      "Precision:  0.31875\n",
+      "Recall:  0.15\n",
+      "F1 Measure:  0.17393939393939395\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/Users/alice/opt/anaconda3/lib/python3.9/site-packages/sklearn/metrics/_classification.py:1248: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.\n",
+      "  _warn_prf(average, modifier, msg_start, len(result))\n"
+     ]
+    }
+   ],
+   "source": [
+    "# input for report: method, dataframe, predicted values\n",
+    "report(\"Hashing Vectorizer + MLP\", testdf, hmlp_fit.predict(test_hvectorizer))\n",
+    "report(\"Counting Vectorizer + MLP\", testdf, cmlp_fit.predict(test_cvectorizer))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "A8K-n8Ak4-2A"
+   },
+   "source": [
+    "---"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "hjiTUFSZ4-2A"
+   },
+   "source": [
+    "# Evaluating your classifiers (20 points)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "H9JXwtnF4-2B"
+   },
+   "source": [
+    "## Question 7 (10 points)\n",
+    "\n",
+    "Evaluate the performance of your models on the **test set**. Make sure to transform your test data as you did for your train data, and as needed for each classifier. *Pay attention: the test data only needs to be transformed, and must not be used to fit any transformation. For example, if you have used a TF-IDF vectorizer by fitting it to your train data and then transformed your train and validation with it, use the same fitted vectorizer to transform your test data.*\n",
+    "\n",
+    "* Report the accuracy of each classifier, as well as its precision, recall and F1 score. \n",
+    "* Plot a [confusion matrix](https://scikit-learn.org/stable/auto_examples/model_selection/plot_confusion_matrix.html) for your best classifier.\n",
+    "* Briefly discuss your results."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 292,
+   "metadata": {
+    "id": "FDr66A_j4-2B"
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>UserName</th>\n",
+       "      <th>ScreenName</th>\n",
+       "      <th>Location</th>\n",
+       "      <th>TweetAt</th>\n",
+       "      <th>OriginalTweet</th>\n",
+       "      <th>Sentiment</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>1</td>\n",
+       "      <td>44953</td>\n",
+       "      <td>NYC</td>\n",
+       "      <td>02-03-2020</td>\n",
+       "      <td>TRENDING: New Yorkers encounter empty supermar...</td>\n",
+       "      <td>Extremely Negative</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>2</td>\n",
+       "      <td>44954</td>\n",
+       "      <td>Seattle, WA</td>\n",
+       "      <td>02-03-2020</td>\n",
+       "      <td>When I couldn't find hand sanitizer at Fred Me...</td>\n",
+       "      <td>Positive</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>3</td>\n",
+       "      <td>44955</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>02-03-2020</td>\n",
+       "      <td>Find out how you can protect yourself and love...</td>\n",
+       "      <td>Extremely Positive</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>4</td>\n",
+       "      <td>44956</td>\n",
+       "      <td>Chicagoland</td>\n",
+       "      <td>02-03-2020</td>\n",
+       "      <td>#Panic buying hits #NewYork City as anxious sh...</td>\n",
+       "      <td>Negative</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>5</td>\n",
+       "      <td>44957</td>\n",
+       "      <td>Melbourne, Victoria</td>\n",
+       "      <td>03-03-2020</td>\n",
+       "      <td>#toiletpaper #dunnypaper #coronavirus #coronav...</td>\n",
+       "      <td>Neutral</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "   UserName  ScreenName             Location     TweetAt  \\\n",
+       "0         1       44953                  NYC  02-03-2020   \n",
+       "1         2       44954          Seattle, WA  02-03-2020   \n",
+       "2         3       44955                  NaN  02-03-2020   \n",
+       "3         4       44956          Chicagoland  02-03-2020   \n",
+       "4         5       44957  Melbourne, Victoria  03-03-2020   \n",
+       "\n",
+       "                                       OriginalTweet           Sentiment  \n",
+       "0  TRENDING: New Yorkers encounter empty supermar...  Extremely Negative  \n",
+       "1  When I couldn't find hand sanitizer at Fred Me...            Positive  \n",
+       "2  Find out how you can protect yourself and love...  Extremely Positive  \n",
+       "3  #Panic buying hits #NewYork City as anxious sh...            Negative  \n",
+       "4  #toiletpaper #dunnypaper #coronavirus #coronav...             Neutral  "
+      ]
+     },
+     "execution_count": 292,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "df_test = pd.read_csv(\"data/Corona_NLP_test.csv\", encoding=\"latin-1\")\n",
+    "df_test.head()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 314,
+   "metadata": {
+    "id": "WFviO9dr4-2B"
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "                                               Tweet           Sentiment\n",
+      "0  trending new yorkers encounter empty supermark...  Extremely Negative\n",
+      "1  couldnt find hand sanitizer fred meyer turned ...            Positive\n",
+      "2                 find protect loved one coronavirus  Extremely Positive\n",
+      "3  panic buying hit newyork city anxious shopper ...            Negative\n",
+      "4  toiletpaper dunnypaper coronavirus coronavirus...             Neutral\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Q7\n",
+    "# pre-processing df_test\n",
+    "def preprocessing(inpf):\n",
+    "    \"\"\"Input: path to text file (text)\n",
+    "       Output: preprocessed txt file\"\"\"\n",
+    "    # read file into df\n",
+    "    df = pd.read_csv(inpf, encoding=\"latin-1\")\n",
+    "    # specify column\n",
+    "    OriginalTweet = df[\"OriginalTweet\"].head(100)\n",
+    "    #specify stopwords\n",
+    "    stopwords = nltk.corpus.stopwords.words('english')\n",
+    "    signs = [\"\\\\\",'/']\n",
+    "    # url tag\n",
+    "    urlremover = re.compile(r'http\\S+')\n",
+    "    # html tag remover\n",
+    "    htmlremover = re.compile('<.*?>|&([a-z0-9]+|#[0-9]{1,6}|#x[0-9a-f]{1,6});')\n",
+    "    \n",
+    "    # initialize list of lists (each list is tweet)\n",
+    "    tokenized = []\n",
+    "    \n",
+    "    third = []\n",
+    "    for line in OriginalTweet:\n",
+    "    # Filtering: Remove unecessary character\n",
+    "        line = line.strip().lower().translate(line.maketrans(\"\", \"\", string.punctuation))\n",
+    "        #print(\"aaa\",line, type(line))\n",
+    "        line = re.sub(r'[0-9]+', '', line)\n",
+    "    # Tokenizing\n",
+    "        line = word_tokenize(line)\n",
+    "    # store in lines in list of lines\n",
+    "        tokenized.append(line)\n",
+    "        \n",
+    "    for tweet in tokenized:\n",
+    "        \n",
+    "        lemmatized = []\n",
+    "        \n",
+    "        #print(tweet)\n",
+    "        for word in tweet:\n",
+    "            #print(word)\n",
+    "            word = urlremover.sub(\" \", word)\n",
+    "            word = htmlremover.sub(\" \", word)\n",
+    "    \n",
+    "\n",
+    "            if ((len(word) > 2) and (not word in stopwords) and (not word in signs)):\n",
+    "            \n",
+    "                lemma = nltk.WordNetLemmatizer().lemmatize(word)\n",
+    "            \n",
+    "                lemmatized.append(lemma)\n",
+    "                \n",
+    "        # removes Nans and errors\n",
+    "        if lemmatized != []:\n",
+    "            stuff = \" \".join(lemmatized)\n",
+    "            third.append(stuff)\n",
+    "\n",
+    "    ppdf = pd.DataFrame(third, columns = ['Tweet'])\n",
+    "    ppdf['Sentiment'] = df['Sentiment']\n",
+    "    return ppdf\n",
+    "\n",
+    "print(preprocessing(\"data/Corona_NLP_test.csv\").head(5))\n",
+    "\n",
+    "df_test2pp = preprocessing(\"data/Corona_NLP_test.csv\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 315,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# transforming new test data\n",
+    "test2_tvectorizer = tvectorizer.transform(df_test2pp[\"Tweet\"]) \n",
+    "test2_hvectorizer = hvectorizer.transform(df_test2pp[\"Tweet\"]) \n",
+    "test2_cvectorizer = cvectorizer.transform(df_test2pp[\"Tweet\"]) \n",
+    "test2_hvectorizer = hvectorizer.transform(df_test2pp[\"Tweet\"]) "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 328,
+   "metadata": {
+    "scrolled": false
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "len pred 100\n",
+      "len truth 100\n",
+      "Example of a correctly classified datapoint: couldnt find hand sanitizer fred meyer turned amazon pack purellcheck coronavirus concern driving price \n",
+      "\n",
+      "Example of a wrongly classified datapoint: trending new yorkers encounter empty supermarket shelf pictured wegmans brooklyn soldout online grocer foodkick maxdelivery coronavirusfearing shopper stock \n",
+      "\n",
+      "Method:  Tf-IDF Vectorizer + LogReg\n",
+      "Accuracy:  0.21\n",
+      "Precision:  0.0441\n",
+      "Recall:  0.21\n",
+      "F1 Measure:  0.07289256198347108\n",
+      "len pred 100\n",
+      "len truth 100\n",
+      "Example of a correctly classified datapoint: couldnt find hand sanitizer fred meyer turned amazon pack purellcheck coronavirus concern driving price \n",
+      "\n",
+      "Example of a wrongly classified datapoint: trending new yorkers encounter empty supermarket shelf pictured wegmans brooklyn soldout online grocer foodkick maxdelivery coronavirusfearing shopper stock \n",
+      "\n",
+      "Method:  Hashing Vectorizer + LogReg\n",
+      "Accuracy:  0.21\n",
+      "Precision:  0.0441\n",
+      "Recall:  0.21\n",
+      "F1 Measure:  0.07289256198347108\n",
+      "len pred 100\n",
+      "len truth 100\n",
+      "Example of a correctly classified datapoint: couldnt find hand sanitizer fred meyer turned amazon pack purellcheck coronavirus concern driving price \n",
+      "\n",
+      "Example of a wrongly classified datapoint: trending new yorkers encounter empty supermarket shelf pictured wegmans brooklyn soldout online grocer foodkick maxdelivery coronavirusfearing shopper stock \n",
+      "\n",
+      "Method:  Hashing Vectorizer + RFC\n",
+      "Accuracy:  0.17\n",
+      "Precision:  0.16111795774647888\n",
+      "Recall:  0.17\n",
+      "F1 Measure:  0.12008130999435346\n",
+      "len pred 100\n",
+      "len truth 100\n",
+      "Example of a correctly classified datapoint: couldnt find hand sanitizer fred meyer turned amazon pack purellcheck coronavirus concern driving price \n",
+      "\n",
+      "Example of a wrongly classified datapoint: trending new yorkers encounter empty supermarket shelf pictured wegmans brooklyn soldout online grocer foodkick maxdelivery coronavirusfearing shopper stock \n",
+      "\n",
+      "Method:  Counting Vectorizer + LogReg\n",
+      "Accuracy:  0.18\n",
+      "Precision:  0.15514705882352942\n",
+      "Recall:  0.18\n",
+      "F1 Measure:  0.13103492429335126\n",
+      "len pred 100\n",
+      "len truth 100\n",
+      "Example of a correctly classified datapoint: couldnt find hand sanitizer fred meyer turned amazon pack purellcheck coronavirus concern driving price \n",
+      "\n",
+      "Example of a wrongly classified datapoint: trending new yorkers encounter empty supermarket shelf pictured wegmans brooklyn soldout online grocer foodkick maxdelivery coronavirusfearing shopper stock \n",
+      "\n",
+      "Method:  Counting Vectorizer + RFC\n",
+      "Accuracy:  0.22\n",
+      "Precision:  0.1134375\n",
+      "Recall:  0.22\n",
+      "F1 Measure:  0.09280397022332507\n",
+      "len pred 100\n",
+      "len truth 100\n",
+      "Example of a correctly classified datapoint: trending new yorkers encounter empty supermarket shelf pictured wegmans brooklyn soldout online grocer foodkick maxdelivery coronavirusfearing shopper stock \n",
+      "\n",
+      "Example of a wrongly classified datapoint: find protect loved one coronavirus \n",
+      "\n",
+      "Method:  Hashing Vectorizer + MLP\n",
+      "Accuracy:  0.21\n",
+      "Precision:  0.19522704658525555\n",
+      "Recall:  0.21\n",
+      "F1 Measure:  0.15588101100351553\n",
+      "len pred 100\n",
+      "len truth 100\n",
+      "Example of a correctly classified datapoint: trending new yorkers encounter empty supermarket shelf pictured wegmans brooklyn soldout online grocer foodkick maxdelivery coronavirusfearing shopper stock \n",
+      "\n",
+      "Example of a wrongly classified datapoint: find protect loved one coronavirus \n",
+      "\n",
+      "Method:  Counting Vectorizer + MLP\n",
+      "Accuracy:  0.19\n",
+      "Precision:  0.1998076923076923\n",
+      "Recall:  0.19\n",
+      "F1 Measure:  0.15394086021505377\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/Users/alice/opt/anaconda3/lib/python3.9/site-packages/sklearn/metrics/_classification.py:1248: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.\n",
+      "  _warn_prf(average, modifier, msg_start, len(result))\n",
+      "/Users/alice/opt/anaconda3/lib/python3.9/site-packages/sklearn/metrics/_classification.py:1248: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.\n",
+      "  _warn_prf(average, modifier, msg_start, len(result))\n",
+      "/Users/alice/opt/anaconda3/lib/python3.9/site-packages/sklearn/metrics/_classification.py:1248: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.\n",
+      "  _warn_prf(average, modifier, msg_start, len(result))\n",
+      "/Users/alice/opt/anaconda3/lib/python3.9/site-packages/sklearn/metrics/_classification.py:1248: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.\n",
+      "  _warn_prf(average, modifier, msg_start, len(result))\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Reports for each classifier\n",
+    "# from Q4\n",
+    "report(\"Tf-IDF Vectorizer + LogReg\", df_test2pp, tlogreg_fit.predict(test2_tvectorizer))\n",
+    "\n",
+    "# from Q5\n",
+    "report(\"Hashing Vectorizer + LogReg\", df_test2pp, hlogreg_fit.predict(test2_hvectorizer))\n",
+    "report(\"Hashing Vectorizer + RFC\", df_test2pp, hrfc_fit.predict(test2_hvectorizer))\n",
+    "report(\"Counting Vectorizer + LogReg\", df_test2pp, clogreg_fit.predict(test2_cvectorizer))\n",
+    "report(\"Counting Vectorizer + RFC\", df_test2pp, crfc_fit.predict(test2_cvectorizer))\n",
+    "\n",
+    "# from Q6\n",
+    "report(\"Hashing Vectorizer + MLP\", df_test2pp, hmlp_fit.predict(test2_hvectorizer))\n",
+    "report(\"Counting Vectorizer + MLP\", df_test2pp, cmlp_fit.predict(test2_cvectorizer))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Discussion and Further Research\n",
+    "Here, on the test data csv, the best model is the Hashing Vectorizer with the MLP approach.\n",
+    "This is interesting as the best model on the train data csv was the Counting Vectorizer with Logistic Regression.\n",
+    "It makes sense that the Neural network (MLP) approach yields better results. However, the counting vectorizer with logistic regression on the train data csv beats the hashing vectorizer with mlp on the test data, as shown below:\n",
+    "\n",
+    "Method:  Counting Vectorizer + LogReg\n",
+    "Accuracy:  0.25\n",
+    "Precision:  0.4083333333333333\n",
+    "Recall:  0.25\n",
+    "F1 Measure:  0.24916666666666668\n",
+    "len pred 20\n",
+    "len truth 20\n",
+    "\n",
+    "I don't know why the train data csv tends to have models with better results. To show this I tested the MLP appraoch with the Hashing & Counting Vectorizer on the test data csv aswell. The results for both the hasing and counting vectorizer with MLP on the train csv are still lower than with logistic regression. Maybe this is because better hyperparameters need to be set up for MLP to make it perform its best. \n",
+    "\n",
+    "The results are seen below:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 397,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "len pred 20\n",
+      "len truth 20\n",
+      "Example of a correctly classified datapoint: followed went shopping day ago pain necessary protect grocery shopping consumer report covid stayhealthy \n",
+      "\n",
+      "Example of a wrongly classified datapoint: feeling like ethical still stuff like order delivery food online shopping etc ship isolation care package loved one etc covid \n",
+      "\n",
+      "Method:  Hashing Vectorizer + MLP on train csv\n",
+      "Accuracy:  0.15\n",
+      "Precision:  0.17613636363636362\n",
+      "Recall:  0.15\n",
+      "F1 Measure:  0.14365079365079367\n",
+      "len pred 20\n",
+      "len truth 20\n",
+      "Example of a correctly classified datapoint: followed went shopping day ago pain necessary protect grocery shopping consumer report covid stayhealthy \n",
+      "\n",
+      "Example of a wrongly classified datapoint: feeling like ethical still stuff like order delivery food online shopping etc ship isolation care package loved one etc covid \n",
+      "\n",
+      "Method:  Counting Vectorizer + MLP on train csv\n",
+      "Accuracy:  0.15\n",
+      "Precision:  0.31875\n",
+      "Recall:  0.15\n",
+      "F1 Measure:  0.17393939393939395\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/Users/alice/opt/anaconda3/lib/python3.9/site-packages/sklearn/metrics/_classification.py:1248: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.\n",
+      "  _warn_prf(average, modifier, msg_start, len(result))\n"
+     ]
+    }
+   ],
+   "source": [
+    "report(\"Hashing Vectorizer + MLP on train csv\", testdf, hmlp_fit.predict(test_hvectorizer))\n",
+    "report(\"Counting Vectorizer + MLP on train csv\", testdf, cmlp_fit.predict(test_cvectorizer))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 330,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# confusion matrix for best classifier: Hashing + MLP\n",
+    "\n",
+    "def plot_confusion_matrix(test_labels, test_predictions, label_vocab):\n",
+    "    # we take all label strings\n",
+    "    labels = label_vocab\n",
+    "    \n",
+    "    # calculate the confusion matrix and normalize it\n",
+    "    cm = metrics.confusion_matrix(test_labels, test_predictions, labels=labels)\n",
+    "    cm = cm.astype('float') / (cm.sum(axis=1)[:, np.newaxis] + 1) # we add 1 to avoid division by zero\n",
+    "\n",
+    "    # plot the confusion matrix using seaborn heatmap\n",
+    "    sns_heatmap = sns.heatmap(\n",
+    "        cm,\n",
+    "        cmap='RdYlGn_r',\n",
+    "        square=True,\n",
+    "        vmin=0,\n",
+    "        vmax=1)\n",
+    "\n",
+    "    # beautify the plot so that it has better readability\n",
+    "    plt.ylim(0, len(labels) + 0.5)\n",
+    "    plt.ylim(0, len(labels) + 0.5)\n",
+    "    plt.xlabel('Predicted values', labelpad=20)\n",
+    "    plt.ylabel('True values')\n",
+    "\n",
+    "    sns_heatmap.set_yticklabels(labels, rotation=0)\n",
+    "    sns_heatmap.set_xticklabels(labels, rotation=45, horizontalalignment='right')\n",
+    "\n",
+    "    plt.show()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 331,
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [
+    {
+     "data": {
+      "image/png": "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\n",
+      "text/plain": [
+       "<Figure size 432x288 with 2 Axes>"
+      ]
+     },
+     "metadata": {
+      "needs_background": "light"
+     },
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "targets = [\"Extremely Positive\", \"Positive\" , \"Neutral\", \"Negative\", \"Extremely Negative\" ]\n",
+    "plot_confusion_matrix(df_test2pp[\"Sentiment\"], hmlp_fit.predict(test2_hvectorizer), targets)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Discussion\n",
+    "\n",
+    "I find it interesting that the combination of vectorizer and classifier is so important. It is not the case that one classifier or vectorizer always outperforms the others. Depending what they are paired with they perform better or worse.\n",
+    "\n",
+    "Furthermore, it is interesting to see that the group with the most occurences is when it was predicted positive. The tile with the most occurences within that was predicted positive and ground truth neutral.\n",
+    "\n",
+    "Sources: Confusion matrix code from notebooks 8_1"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "JRm9J4-o4-2C"
+   },
+   "source": [
+    "---"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "collapsed": true,
+    "id": "nKxvAsxg4-2C"
+   },
+   "source": [
+    "## Question 8 (10 points)\n",
+    "\n",
+    "When the results of two models are similar, and anyway as a good practice, you may want to test whether their results **differ significantly**. If you can afford to do multiple paired runs of both models on different slices of the data (or different samples), a good approach is the [Wilcoxon signed-rank test](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.wilcoxon.html).\n",
+    "\n",
+    "* Select two (or more) of your classifiers which have somewhat similar results on your validation data. Make sure to select two methods which do not take too long to run.\n",
+    "* Merge your train and validation data, and implement a function to shuffle and sample a % of datapoints (with labels) from it.\n",
+    "* Iterate 5-10 times the following steps:\n",
+    "   - Shuffle and sample 80% of your training datapoints.\n",
+    "   - Train instances of the two classifiers on the same 80% sample.\n",
+    "   - Assess their accuracy on the test dataset and store these results (into two separate lists for each classifier).\n",
+    "* Perform a Wilcoxon test on these results and discuss whether the two classifiers are significantly different on this task and dataset."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 388,
+   "metadata": {
+    "id": "ONz1PmOM4-2E",
+    "scrolled": false
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "number of rows being merged: \n",
+      "no. of train rows   + no. of test rows = no. of toal merged rows\n",
+      "99                  +              100 = 199 \n",
+      "\n",
+      "logreg accuracy scores: [0.25, 0.225, 0.2, 0.2, 0.2, 0.125, 0.2, 0.3, 0.225, 0.2] \n",
+      "   rfc accuracy scores: [0.175, 0.2, 0.15, 0.2, 0.2, 0.15, 0.175, 0.2, 0.15, 0.225]\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Q8\n",
+    "\n",
+    "# I selected Logistic Regression and Random Forest Regression for the Counting Vectorizor\n",
+    "\n",
+    "# Merge train and validation data\n",
+    "# train data is df_train = pd.read_csv(file, encoding=\"latin-1\")\n",
+    "# validation (test) df_test = data is pd.read_csv(\"data/Corona_NLP_test.csv\", encoding=\"latin-1\")\n",
+    "\n",
+    "# their pre-processed versions\n",
+    "# train data = df_trainpp\n",
+    "# test data = df_test2pp\n",
+    "\n",
+    "# Merge\n",
+    "dfmerge = df_trainpp.append(df_test2pp)\n",
+    "print(\"number of rows being merged: \\nno. of train rows   + no. of test rows = no. of toal merged rows\")\n",
+    "print(len(df_trainpp), \"                 +             \", len(df_test2pp), \"=\", len(dfmerge), \"\\n\")\n",
+    "\n",
+    "\"\"\"\n",
+    "OLD version:\n",
+    "These are two old functions I wrote for shuffling the data, however, I realized it would be simplest\n",
+    "to do it within the iteration function.\n",
+    "\n",
+    "def shufflesample(data, perc):\n",
+    "    nrows = (perc * len(data))/100\n",
+    "    return data.sample(nrows)\n",
+    "    \n",
+    "def shufflesample(data,perc,randstate):\n",
+    "    Input: dataframe, percentage of rows that the test set should have, and a random number for a random state\n",
+    "       Output: randomly sampled train and test sets (from shuffled data)\n",
+    "    trainset, testset = train_test_split(data, test_size=0.20, random_state=randstate)\n",
+    "    return trainset, testset\n",
+    "\"\"\"\n",
+    "    \n",
+    "def iter10(data):\n",
+    "    \"\"\"Input: dataframe\n",
+    "       Output: does this 10 times: \n",
+    "       shuffles and samples data, trains logistic regression and random forest regression on random train set and tests them on random test set\n",
+    "       for all 10 iterations the accuacy of the classifiers is stored in 2 lists\n",
+    "       (1st list is log reg accuracy scores\n",
+    "        2nd list is rfc accuracy scores)\"\"\"\n",
+    "    # Make 1 list for each classifier's accuracy score from the report function\n",
+    "    logreg_acc = []\n",
+    "    rfc_acc = []\n",
+    "    \n",
+    "    for i in range(10):\n",
+    "        # random sample\n",
+    "        trainset, testset = train_test_split(dfmerge, test_size=0.20, random_state=i)\n",
+    "        \n",
+    "        # training and fitting counting vectorizer to new train & test set\n",
+    "        # cvectorizer was defined in questions above as Counting Vectorizer\n",
+    "        trainset_cvectorizer = cvectorizer.fit_transform(trainset[\"Tweet\"])\n",
+    "        testset_cvectorizer = cvectorizer.transform(testset[\"Tweet\"]) \n",
+    "\n",
+    "        # fitting both classifiers\n",
+    "        clogreg_trainset_fit = LogisticRegression(solver=\"lbfgs\", max_iter=1000).fit(trainset_cvectorizer, trainset[\"Sentiment\"])\n",
+    "        crfc_trainset_fit = RandomForestClassifier().fit(trainset_cvectorizer, trainset[\"Sentiment\"])\n",
+    "        \n",
+    "        # setting ground truth and prediction\n",
+    "        truth = testset[\"Sentiment\"]\n",
+    "        predlogreg = clogreg_trainset_fit.predict(testset_cvectorizer)\n",
+    "        predrfc = crfc_trainset_fit.predict(testset_cvectorizer)\n",
+    "        \n",
+    "        # calculating accuracy score\n",
+    "        alogreg = accuracy_score(truth, predlogreg)\n",
+    "        arfc = accuracy_score(truth, predrfc)\n",
+    "        \n",
+    "        # adding accuracy scores to lists\n",
+    "        logreg_acc.append(alogreg)\n",
+    "        rfc_acc.append(arfc)\n",
+    "    return logreg_acc, rfc_acc\n",
+    "        \n",
+    "it10 = iter10(dfmerge)\n",
+    "print(\"logreg accuracy scores:\", it10[0],\"\\n   rfc accuracy scores:\", it10[1])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 389,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "P-value : 0.048550746423148196\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/Users/alice/opt/anaconda3/lib/python3.9/site-packages/scipy/stats/morestats.py:3141: UserWarning: Exact p-value calculation does not work if there are ties. Switching to normal approximation.\n",
+      "  warnings.warn(\"Exact p-value calculation does not work if there are \"\n",
+      "/Users/alice/opt/anaconda3/lib/python3.9/site-packages/scipy/stats/morestats.py:3155: UserWarning: Sample size too small for normal approximation.\n",
+      "  warnings.warn(\"Sample size too small for normal approximation.\")\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Wilcoxon signed-rank test\n",
+    "\n",
+    "acc_diff = []\n",
+    "\n",
+    "for x, y in zip(it10[0], it10[1]):\n",
+    "    acc_diff.append(x-y)\n",
+    "    \n",
+    "w, p = wilcoxon(acc_diff)\n",
+    "\n",
+    "print(\"P-value :\", p)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "A small p-value indicates that the accuracy scores differ significantly with 95% certanity.\n",
+    "A large p-value indicates that there is not enough evidence that the accuracy scores differ significantly.\n",
+    "\n",
+    "If there are five or less values then the p-value will always be above 0.05. As I have 10 accuracy values, and my p-value is very close to 0.05 (by 0.02), I conclude that I have a large p-value. This means that there us not enough evidence to conclude that the  accuracy scores from the logistic regression and random forest regressor differ significantly.\n",
+    "\n",
+    "Sources: https://www.graphpad.com/guides/prism/latest/statistics/stat_interpreting_results_wilcoxon_.htm"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "e2z2g9eF4-2E"
+   },
+   "source": [
+    "---"
+   ]
+  }
+ ],
+ "metadata": {
+  "colab": {
+   "collapsed_sections": [],
+   "name": "notebook_a3.ipynb",
+   "provenance": []
+  },
+  "kernelspec": {
+   "display_name": "Python 3 (ipykernel)",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.9.7"
+  },
+  "toc": {
+   "base_numbering": 1,
+   "nav_menu": {},
+   "number_sections": true,
+   "sideBar": true,
+   "skip_h1_title": false,
+   "title_cell": "Table of Contents",
+   "title_sidebar": "Contents",
+   "toc_cell": false,
+   "toc_position": {},
+   "toc_section_display": true,
+   "toc_window_display": true
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 1
+}
